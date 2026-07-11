@@ -1,19 +1,21 @@
-services:
-  # PostgreSQL Database (Free tier - 90 days)
-  - type: pserv
-    name: monsoonprep-db
+databases:
+  - name: monsoonprep-db
     plan: free
     region: oregon
+    databaseName: monsoonprep
+    user: monsoonprep
     ipAllowList: []
 
-  # Redis Cache (Free tier)
-  - type: redis
+services:
+  # Redis-compatible Render Key Value
+  - type: keyvalue
     name: monsoonprep-redis
     plan: free
     region: oregon
     ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
 
-  # Backend API Service
+  # Backend API
   - type: web
     name: monsoonprep-backend
     plan: free
@@ -21,52 +23,68 @@ services:
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
+
     envVars:
       - key: APP_ENV
         value: production
+
       - key: APP_DEBUG
         value: "false"
+
       - key: APP_PORT
         value: "8000"
+
       - key: LOG_LEVEL
         value: INFO
+
       - key: GROQ_API_KEY
         sync: false
+
       - key: DATABASE_URL
         fromDatabase:
           name: monsoonprep-db
           property: connectionString
+
       - key: REDIS_URL
         fromService:
           name: monsoonprep-redis
-          type: redis
+          type: keyvalue
           property: connectionString
+
       - key: CORS_ORIGINS
         value: "https://monsoonprep-frontend.onrender.com"
+
       - key: WEATHER_CACHE_TTL_SECONDS
         value: "300"
+
       - key: FORECAST_CACHE_TTL_SECONDS
         value: "1800"
+
       - key: ALERT_COOLDOWN_MINUTES
         value: "180"
+
       - key: ALERT_DATA_MAX_AGE_SECONDS
         value: "600"
+
       - key: RATE_LIMIT_REQUESTS
         value: "100"
+
       - key: RATE_LIMIT_WINDOW_SECONDS
         value: "60"
-    healthCheckPath: /api/health
-    autoDeploy: true
 
-  # Frontend Static Site (Free)
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+
+  # Frontend
   - type: web
     name: monsoonprep-frontend
     plan: free
-    region: oregon
     runtime: docker
     dockerfilePath: ./frontend/Dockerfile
     dockerContext: ./frontend
+
     envVars:
       - key: VITE_API_URL
         value: "https://monsoonprep-backend.onrender.com"
-    autoDeploy: true
+
+    autoDeployTrigger: commit
