@@ -2,6 +2,8 @@
 Registers middleware, routes, and lifecycle events.
 """
 
+import subprocess
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -26,6 +28,25 @@ from src.observability.logger import get_logger
 logger = get_logger(__name__)
 
 
+def run_migrations() -> None:
+    """Run alembic migrations at startup."""
+    try:
+        logger.info("running_database_migrations")
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd="/app",
+        )
+        if result.returncode != 0:
+            logger.error("migration_failed", stderr=result.stderr, stdout=result.stdout)
+        else:
+            logger.info("migrations_completed", stdout=result.stdout)
+    except Exception as e:
+        logger.exception("migration_error", error=str(e))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifecycle: startup and shutdown."""
@@ -34,6 +55,9 @@ async def lifespan(app: FastAPI):
         environment=settings.app_env,
         debug=settings.app_debug,
     )
+
+    # Run database migrations
+    run_migrations()
 
     # Initialize connections
     await redis_manager.connect()
