@@ -2,6 +2,7 @@
 Registers middleware, routes, and lifecycle events.
 """
 
+import os
 import subprocess
 import sys
 from contextlib import asynccontextmanager
@@ -32,12 +33,25 @@ def run_migrations() -> None:
     """Run alembic migrations at startup."""
     try:
         logger.info("running_database_migrations")
+        # Find alembic.ini - it's in /app/backend or /backend depending on container
+        alembic_paths = ["/app/backend", "/backend", "/app"]
+        alembic_dir = None
+        for path in alembic_paths:
+            if os.path.exists(os.path.join(path, "alembic.ini")):
+                alembic_dir = path
+                break
+        
+        if not alembic_dir:
+            logger.error("alembic.ini_not_found")
+            return
+            
+        logger.info("running_migrations_in", directory=alembic_dir)
         result = subprocess.run(
             [sys.executable, "-m", "alembic", "upgrade", "head"],
             capture_output=True,
             text=True,
             timeout=60,
-            cwd="/app/backend",
+            cwd=alembic_dir,
         )
         if result.returncode != 0:
             logger.error("migration_failed", stderr=result.stderr, stdout=result.stdout)
