@@ -37,7 +37,7 @@ def run_migrations() -> None:
             capture_output=True,
             text=True,
             timeout=60,
-            cwd="/app",
+            cwd="/app/backend",
         )
         if result.returncode != 0:
             logger.error("migration_failed", stderr=result.stderr, stdout=result.stdout)
