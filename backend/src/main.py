@@ -56,12 +56,12 @@ async def lifespan(app: FastAPI):
         debug=settings.app_debug,
     )
 
-    # Run database migrations
-    run_migrations()
-
-    # Initialize connections
+    # Initialize connections first
     await redis_manager.connect()
     await db_manager.connect()
+
+    # Run database migrations after connection is established
+    run_migrations()
 
     logger.info("application_ready")
     yield
