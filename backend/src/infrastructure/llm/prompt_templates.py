@@ -1,5 +1,4 @@
-"""
-System prompts and guidelines for Gemini LLM grounding.
+"""System prompts and guidelines for Gemini LLM grounding.
 Per spec: System instruction must explicitly state never to invent information.
 """
 

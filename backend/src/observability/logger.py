@@ -1,16 +1,16 @@
-"""
-Structured JSON logger.
+"""Structured JSON logger.
 All logs are structured for observability — no print statements.
 """
 
-import structlog
 import logging
 import sys
+
+import structlog
 
 from src.config import settings
 
 
-def setup_logging():
+def setup_logging() -> None:
     """Configure structured logging for the application."""
     structlog.configure(
         processors=[
@@ -26,7 +26,7 @@ def setup_logging():
             ),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(logging, settings.log_level.upper(), logging.INFO)
+            getattr(logging, settings.log_level.upper(), logging.INFO),
         ),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(file=sys.stdout),

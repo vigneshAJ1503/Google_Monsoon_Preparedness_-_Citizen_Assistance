@@ -1,19 +1,20 @@
-"""
-Safety Assistant endpoints.
+"""Safety Assistant endpoints.
+
 Serves grounded safety guidelines and contextual advice.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Annotated
 from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.middleware.rate_limiter import check_rate_limit
-from src.infrastructure.persistence.database import get_db_session
-from src.infrastructure.persistence.repositories import HouseholdRepository
 from src.application.assistant_service import assistant_service
 from src.application.translation_service import translation_service
+from src.infrastructure.persistence.database import get_db_session
+from src.infrastructure.persistence.repositories import HouseholdRepository
 from src.observability.logger import get_logger
 
 router = APIRouter()
@@ -21,31 +22,37 @@ logger = get_logger(__name__)
 
 
 class AskQuestionRequest(BaseModel):
+    """Request body for safety Q&A."""
+
     question: str = Field(..., max_length=500, description="Citizen safety question")
-    household_id: Optional[str] = Field(None, description="UUID of household for grounding context")
+    household_id: str | None = Field(
+        None, description="UUID of household for grounding context",
+    )
 
 
 class AskQuestionResponse(BaseModel):
+    """Response body for safety Q&A."""
+
     answer: str
-    sources: List[str]
-    observed_at: Optional[str] = None
+    sources: list[str]
+    observed_at: str | None = None
     live_data_used: bool
     is_stale: bool = False
 
 
 @router.post(
     "/ask",
-    response_model=AskQuestionResponse,
     summary="Ask safety assistant a weather-aware question",
     dependencies=[Depends(check_rate_limit)],
 )
 async def ask_assistant(
-    request: Request,
+    _request: Request,
     body: AskQuestionRequest,
-    db: AsyncSession = Depends(get_db_session),
-):
-    """
-    Submit a monsoon safety question. Returns a grounded GenAI response.
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+) -> AskQuestionResponse:
+    """Submit a monsoon safety question.
+
+    Returns a grounded GenAI response.
     Includes details about source data age and live validation.
     Translates response if language is set to Tamil or Hindi.
     """

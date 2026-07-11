@@ -1,17 +1,16 @@
-"""
-Normalize Open-Meteo responses to domain Weather models.
+"""Normalize Open-Meteo responses to domain Weather models.
 Maps WMO codes to WeatherCondition enum.
 """
 
 from datetime import datetime, timezone
-from typing import Dict, Any
+from typing import Any
 
 from src.domain.models.weather import (
-    WeatherObservation,
-    WeatherForecast,
     ForecastDay,
-    WeatherCondition,
     RainfallData,
+    WeatherCondition,
+    WeatherForecast,
+    WeatherObservation,
     WindData,
 )
 
@@ -21,29 +20,28 @@ def map_wmo_code(code: int) -> WeatherCondition:
     # WMO weather interpretation codes: https://open-meteo.com/en/docs
     if code == 0:
         return WeatherCondition.CLEAR
-    elif code in (1, 2):
+    if code in (1, 2):
         return WeatherCondition.PARTLY_CLOUDY
-    elif code == 3:
+    if code == 3:
         return WeatherCondition.CLOUDY
-    elif code in (45, 48):
+    if code in (45, 48):
         return WeatherCondition.FOG
-    elif code in (51, 53, 55, 56, 57):
+    if code in (51, 53, 55, 56, 57):
         return WeatherCondition.DRIZZLE
-    elif code in (61, 80):
+    if code in (61, 80):
         return WeatherCondition.LIGHT_RAIN
-    elif code in (63, 66, 67, 81):
+    if code in (63, 66, 67, 81):
         return WeatherCondition.MODERATE_RAIN
-    elif code == 65:
+    if code == 65:
         return WeatherCondition.HEAVY_RAIN
-    elif code == 82:
+    if code == 82:
         return WeatherCondition.VERY_HEAVY_RAIN  # Violent rain showers
-    elif code in (95, 96, 99):
+    if code in (95, 96, 99):
         return WeatherCondition.THUNDERSTORM
-    else:
-        return WeatherCondition.UNKNOWN
+    return WeatherCondition.UNKNOWN
 
 
-def normalize_observation(raw: Dict[str, Any]) -> WeatherObservation:
+def normalize_observation(raw: dict[str, Any]) -> WeatherObservation:
     """Map Open-Meteo JSON into WeatherObservation domain model."""
     current = raw.get("current", {})
     hourly = raw.get("hourly", {})
@@ -82,7 +80,11 @@ def normalize_observation(raw: Dict[str, Any]) -> WeatherObservation:
             gust_kmph=current.get("wind_gusts_10m"),
             direction_degrees=current.get("wind_direction_10m"),
         ),
-        visibility_km=current.get("visibility", 10000.0) / 1000.0 if "visibility" in current else None,
+        visibility_km=(
+            current.get("visibility", 10000.0) / 1000.0
+            if "visibility" in current
+            else None
+        ),
         pressure_hpa=current.get("pressure_msl"),
         cloud_cover_percent=current.get("cloud_cover"),
         soil_moisture=current.get("soil_moisture_0_to_10cm"),
@@ -92,7 +94,7 @@ def normalize_observation(raw: Dict[str, Any]) -> WeatherObservation:
     )
 
 
-def normalize_forecast(raw: Dict[str, Any]) -> WeatherForecast:
+def normalize_forecast(raw: dict[str, Any]) -> WeatherForecast:
     """Map Open-Meteo JSON into WeatherForecast domain model."""
     daily = raw.get("daily", {})
     days = []
@@ -107,12 +109,14 @@ def normalize_forecast(raw: Dict[str, Any]) -> WeatherForecast:
                 temp_min_celsius=daily.get("temperature_2m_min", [None])[idx],
                 temp_max_celsius=daily.get("temperature_2m_max", [None])[idx],
                 rainfall_mm=daily.get("precipitation_sum", [0.0])[idx],
-                rainfall_probability_percent=daily.get("precipitation_probability_max", [None])[idx],
+                rainfall_probability_percent=daily.get(
+                    "precipitation_probability_max", [None],
+                )[idx],
                 wind_speed_kmph=daily.get("wind_speed_10m_max", [0.0])[idx],
                 wind_gust_kmph=daily.get("wind_gusts_10m_max", [None])[idx],
                 sunrise=daily.get("sunrise", [None])[idx],
                 sunset=daily.get("sunset", [None])[idx],
-            )
+            ),
         )
 
     now = datetime.now(timezone.utc)

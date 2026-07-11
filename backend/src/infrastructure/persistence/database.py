@@ -1,10 +1,10 @@
-"""
-Database connection manager.
+"""Database connection manager.
 Provides async session maker and lifecycle hooks.
 """
 
-from typing import AsyncGenerator
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from collections.abc import AsyncGenerator
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 
 from src.config import settings
@@ -27,11 +27,11 @@ def _get_async_database_url() -> str:
 class DatabaseManager:
     """Manages PostgreSQL connection lifecycle and async sessions."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._engine = None
         self._session_maker = None
 
-    async def connect(self):
+    async def connect(self) -> None:
         """Initialize database engine and session maker."""
         if self._engine is not None:
             return
@@ -53,10 +53,10 @@ class DatabaseManager:
             )
             logger.info("database_connected_successfully")
         except Exception as e:
-            logger.error("database_connection_failed", error=str(e))
-            raise e
+            logger.exception("database_connection_failed", error=str(e))
+            raise
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Close database engine."""
         if self._engine is None:
             return
@@ -65,7 +65,7 @@ class DatabaseManager:
             await self._engine.dispose()
             logger.info("database_disconnected")
         except Exception as e:
-            logger.error("database_disconnect_failed", error=str(e))
+            logger.exception("database_disconnect_failed", error=str(e))
         finally:
             self._engine = None
             self._session_maker = None
@@ -73,15 +73,16 @@ class DatabaseManager:
     async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
         """Dependency for getting db session in routes."""
         if self._session_maker is None:
-            raise RuntimeError("Database not initialized. Call connect() first.")
+            msg = "Database not initialized. Call connect() first."
+            raise RuntimeError(msg)
 
         async with self._session_maker() as session:
             try:
                 yield session
             except Exception as e:
                 await session.rollback()
-                logger.error("database_session_error", error=str(e))
-                raise e
+                logger.exception("database_session_error", error=str(e))
+                raise
 
 
 # Singleton instance

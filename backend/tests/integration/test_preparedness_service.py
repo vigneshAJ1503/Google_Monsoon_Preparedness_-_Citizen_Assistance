@@ -33,19 +33,19 @@ async def test_generate_plan_deterministic_fallback():
         has_vehicle=True
     )
 
-    # Patch weather_service & alert_repo & gemini_client
+    # Patch weather_service & alert_repo & groq_client
     with patch("src.application.preparedness_service.weather_service.get_weather_context", new_callable=AsyncMock) as mock_weather, \
          patch("src.application.preparedness_service.AlertRepository.get_active_alerts", new_callable=AsyncMock) as mock_alerts, \
          patch("src.application.preparedness_service.PreparednessPlanRepository.save", new_callable=AsyncMock) as mock_save, \
          patch("src.application.preparedness_service.PreparednessPlanRepository.get_by_household", new_callable=AsyncMock) as mock_get_cache, \
-         patch("src.application.preparedness_service.gemini_client._get_client") as mock_gemini_client:
+         patch("src.infrastructure.llm.groq_client.groq_client._get_client") as mock_groq_client:
          
         mock_weather.return_value = weather_ctx
         mock_alerts.return_value = []
         mock_get_cache.return_value = None
         
-        # Disable Gemini to force fallback
-        mock_gemini_client.return_value = None
+        # Disable Groq to force fallback
+        mock_groq_client.return_value = None
 
         plan = await preparedness_service.generate_plan(hh, db_mock, bypass_cache=True)
         

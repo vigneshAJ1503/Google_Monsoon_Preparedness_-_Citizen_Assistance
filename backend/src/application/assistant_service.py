@@ -1,23 +1,25 @@
-"""
-Safety Assistant Service.
+"""Safety Assistant Service.
 Implements a complete RAG (Retrieval-Augmented Generation) pipeline.
 Steps: Input validation -> retrieval -> safety checks -> generation -> verification.
 """
 
-from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
-from sqlalchemy.ext.asyncio import AsyncSession
 import re
+from typing import Any
 
-from src.domain.models.weather import WeatherContext
-from src.domain.models.household import HouseholdProfile
-from src.domain.models.alert import Alert
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.application.weather_service import weather_service
-from src.infrastructure.llm.groq_client import groq_client
-from src.infrastructure.llm.prompt_templates import SYSTEM_SAFETY_POLICY, ASSISTANT_QNA_PROMPT
-from src.infrastructure.llm.output_validator import clean_and_validate_response
-from src.infrastructure.llm.context_builder import build_assistant_qna_prompt_vars
+from src.domain.models.alert import Alert
+from src.domain.models.household import HouseholdProfile
+from src.domain.models.weather import WeatherContext
 from src.infrastructure.knowledge.safety_knowledge import get_relevant_guidelines
+from src.infrastructure.llm.context_builder import build_assistant_qna_prompt_vars
+from src.infrastructure.llm.groq_client import groq_client
+from src.infrastructure.llm.output_validator import clean_and_validate_response
+from src.infrastructure.llm.prompt_templates import (
+    ASSISTANT_QNA_PROMPT,
+    SYSTEM_SAFETY_POLICY,
+)
 from src.infrastructure.persistence.repositories import AlertRepository
 from src.observability.logger import get_logger
 
@@ -30,12 +32,10 @@ class AssistantService:
     async def answer_question(
         self,
         question: str,
-        household: Optional[HouseholdProfile],
+        household: HouseholdProfile | None,
         db: AsyncSession,
-    ) -> Dict[str, Any]:
-        """
-        Execute RAG flow for a user safety query.
-        """
+    ) -> dict[str, Any]:
+        """Execute RAG flow for a user safety query."""
         # 1. Input validation & Sanitization (prevent injection)
         cleaned_question = self._sanitize_input(question)
         if not cleaned_question:
@@ -51,7 +51,7 @@ class AssistantService:
 
         # 2. Fetch Live Context
         weather = await weather_service.get_weather_context(lat, lng)
-        
+
         # Fetch Alerts
         alert_repo = AlertRepository(db)
         alerts = await alert_repo.get_active_alerts()
@@ -96,7 +96,7 @@ class AssistantService:
                 # 5. Output Validation (Verify no unverified claims or fake dates)
                 answer = clean_and_validate_response(raw_response)
                 logger.info("assistant_responded_via_llm")
-                
+
                 return {
                     "answer": answer,
                     "sources": sources,
@@ -105,12 +105,14 @@ class AssistantService:
                     "is_stale": weather.current.is_stale,
                 }
             except Exception as e:
-                logger.error("assistant_generation_failed_falling_back", error=str(e))
+                logger.exception("assistant_generation_failed_falling_back", error=str(e))
 
         # 6. Fallback answers if LLM fails or is disabled
-        answer = self._generate_fallback_answer(cleaned_question, weather, matched_alerts)
+        answer = self._generate_fallback_answer(
+            cleaned_question, weather, matched_alerts,
+        )
         logger.info("assistant_responded_via_fallback")
-        
+
         return {
             "answer": answer,
             "sources": ["Local safety knowledge templates"],
@@ -124,29 +126,39 @@ class AssistantService:
         clean = re.sub(r"<[^>]*>", "", text)
         clean = re.sub(r"[{}\[\]]", "", clean)
         # Check for system instructions override attempts
-        if any(keyword in clean.lower() for keyword in ["ignore previous", "system prompt", "override instructions", "you must now"]):
+        if any(
+            keyword in clean.lower()
+            for keyword in [
+                "ignore previous",
+                "system prompt",
+                "override instructions",
+                "you must now",
+            ]
+        ):
             logger.warning("potential_prompt_injection_blocked", input=text)
             return ""
-        return clean.strip()[:300]  # Limit length to 300 characters to prevent buffer issues
+        return clean.strip()[
+            :300
+        ]  # Limit length to 300 characters to prevent buffer issues
 
     def _generate_fallback_answer(
-        self, query: str, weather: WeatherContext, alerts: List[Alert]
+        self, query: str, weather: WeatherContext, alerts: list[Alert],
     ) -> str:
         """Generate a basic templates response based on user keywords."""
         query_lower = query.lower()
-        
+
         if any(w in query_lower for w in ["prepare", "checklist", "kit", "plan"]):
             return (
                 "To prepare for monsoons, please complete your personalized checklist and store at least 3 days of clean drinking water, "
                 "non-perishable food, flashlights, and a first-aid kit. Charge all power banks and keep personal documents in a waterproof bag."
             )
-            
+
         if any(w in query_lower for w in ["flood", "water", "drain"]):
             return (
                 "In case of flooding, immediately turn off the main electricity switch in your home. Do not wade, walk, or drive through "
                 "moving water. Move children and elderly family members to higher floors and stay tuned to official alerts."
             )
-            
+
         if any(w in query_lower for w in ["lightning", "thunder", "storm"]):
             return (
                 "During a thunderstorm, stay indoors and keep away from electrical appliances, metal objects, and water taps. "
@@ -154,7 +166,9 @@ class AssistantService:
             )
 
         # Default fallback with weather context
-        rain_info = f"Current rainfall forecast: {weather.current.rainfall.forecast_mm:.1f}mm."
+        rain_info = (
+            f"Current rainfall forecast: {weather.current.rainfall.forecast_mm:.1f}mm."
+        )
         return (
             f"For personalized monsoon safety guidance, please use the Preparedness Plan or Checklist features. "
             f"{rain_info} Stay alert and follow official NDMA advisories."

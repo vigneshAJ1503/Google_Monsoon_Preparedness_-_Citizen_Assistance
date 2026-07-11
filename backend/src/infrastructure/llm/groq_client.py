@@ -1,19 +1,19 @@
-"""
-Groq API client (OpenAI-compatible).
+"""Groq API client (OpenAI-compatible).
 Free tier: 14,400 req/day for Llama 3.1 8B, 6,000 req/day for Llama 3.3 70B.
 No credit card required for free tier.
 """
 
-from typing import Type, TypeVar, Optional
-import json
 import asyncio
-from pydantic import BaseModel
+import json
+from typing import TypeVar
+
 from openai import AsyncOpenAI
+from pydantic import BaseModel
 
 from src.config import settings
-from src.domain.exceptions.llm import LLMTimeout, InvalidAIResponse
+from src.domain.exceptions.llm import InvalidAIResponse, LLMTimeout
 from src.observability.logger import get_logger
-from src.observability.metrics import timer, metrics
+from src.observability.metrics import metrics, timer
 
 logger = get_logger(__name__)
 
@@ -23,16 +23,19 @@ T = TypeVar("T", bound=BaseModel)
 class GroqClient:
     """Async wrapper for Groq API (OpenAI-compatible)."""
 
-    def __init__(self):
-        self._client: Optional[AsyncOpenAI] = None
+    def __init__(self) -> None:
+        self._client: AsyncOpenAI | None = None
 
-    def _get_client(self) -> Optional[AsyncOpenAI]:
+    def _get_client(self) -> AsyncOpenAI | None:
         """Lazy initialization of the Groq client."""
         if self._client is not None:
             return self._client
 
         if not settings.groq_api_key:
-            logger.warning("groq_api_key_missing", message="Groq API requests will fallback to deterministic generation")
+            logger.warning(
+                "groq_api_key_missing",
+                message="Groq API requests will fallback to deterministic generation",
+            )
             return None
 
         try:
@@ -42,24 +45,24 @@ class GroqClient:
             )
             return self._client
         except Exception as e:
-            logger.error("groq_client_init_failed", error=str(e))
+            logger.exception("groq_client_init_failed", error=str(e))
             return None
 
     async def generate_structured(
         self,
         prompt: str,
-        response_schema: Type[T],
-        system_instruction: Optional[str] = None,
+        response_schema: type[T],
+        system_instruction: str | None = None,
         max_retries: int = 1,
     ) -> T:
-        """
-        Generate structured output adhering to a Pydantic schema.
+        """Generate structured output adhering to a Pydantic schema.
         Note: Groq doesn't support native JSON schema like Gemini,
         so we use function calling / tool use approach.
         """
         client = self._get_client()
         if not client:
-            raise InvalidAIResponse("Groq API key is not configured")
+            msg = "Groq API key is not configured"
+            raise InvalidAIResponse(msg)
 
         # Convert Pydantic schema to JSON Schema for function calling
         schema = response_schema.model_json_schema()
@@ -72,7 +75,7 @@ class GroqClient:
                     "description": "Generate structured response matching the schema",
                     "parameters": schema,
                 },
-            }
+            },
         ]
 
         messages = []
@@ -95,7 +98,10 @@ class GroqClient:
                             model=settings.groq_model,
                             messages=messages,
                             tools=tools,
-                            tool_choice={"type": "function", "function": {"name": "generate_response"}},
+                            tool_choice={
+                                "type": "function",
+                                "function": {"name": "generate_response"},
+                            },
                             temperature=0.2,
                             max_tokens=settings.groq_max_output_tokens,
                         ),
@@ -108,8 +114,7 @@ class GroqClient:
                 if tool_calls and tool_calls[0].function.arguments:
                     try:
                         parsed_data = json.loads(tool_calls[0].function.arguments)
-                        validated_obj = response_schema.model_validate(parsed_data)
-                        return validated_obj
+                        return response_schema.model_validate(parsed_data)
                     except Exception as e:
                         logger.warning(
                             "groq_schema_validation_failed",
@@ -119,9 +124,14 @@ class GroqClient:
                         )
                         metrics.increment("groq_schema_failures")
                         if attempt == max_retries:
-                            raise InvalidAIResponse(f"Schema validation failed: {str(e)}", tool_calls[0].function.arguments)
+                            msg = f"Schema validation failed: {e!s}"
+                            raise InvalidAIResponse(
+                                msg,
+                                tool_calls[0].function.arguments,
+                            )
                 else:
-                    raise InvalidAIResponse("No function call returned from model")
+                    msg = "No function call returned from model"
+                    raise InvalidAIResponse(msg)
 
             except asyncio.TimeoutError:
                 metrics.increment("groq_timeouts")
@@ -131,21 +141,24 @@ class GroqClient:
 
             except Exception as e:
                 metrics.increment("groq_api_errors")
-                logger.error("groq_api_error", attempt=attempt, error=str(e))
+                logger.exception("groq_api_error", attempt=attempt, error=str(e))
                 if attempt == max_retries:
-                    raise InvalidAIResponse(f"Groq API Error: {str(e)}")
+                    msg = f"Groq API Error: {e!s}"
+                    raise InvalidAIResponse(msg)
 
-        raise InvalidAIResponse("Failed after max retries")
+        msg = "Failed after max retries"
+        raise InvalidAIResponse(msg)
 
     async def generate_text(
         self,
         prompt: str,
-        system_instruction: Optional[str] = None,
+        system_instruction: str | None = None,
     ) -> str:
         """Generate free-form text with Groq."""
         client = self._get_client()
         if not client:
-            raise InvalidAIResponse("Groq API key is not configured")
+            msg = "Groq API key is not configured"
+            raise InvalidAIResponse(msg)
 
         messages = []
         if system_instruction:
@@ -166,13 +179,15 @@ class GroqClient:
                 )
 
             if not response.choices[0].message.content:
-                raise InvalidAIResponse("Empty response from model")
+                msg = "Empty response from model"
+                raise InvalidAIResponse(msg)
             return response.choices[0].message.content
 
         except asyncio.TimeoutError:
             raise LLMTimeout(settings.groq_timeout_seconds)
         except Exception as e:
-            raise InvalidAIResponse(f"Text generation failed: {str(e)}")
+            msg = f"Text generation failed: {e!s}"
+            raise InvalidAIResponse(msg)
 
 
 # Singleton client

@@ -1,12 +1,11 @@
-"""
-Trusted safety knowledge regarding Indian Monsoons.
+"""Trusted safety knowledge regarding Indian Monsoons.
 Contains NDMA (National Disaster Management Authority) guidelines for citizens.
 Used to ground the RAG safety assistant pipeline.
 """
 
-from typing import List, Dict, Any
+from typing import Any
 
-MONSOON_SAFETY_GUIDELINES: List[Dict[str, Any]] = [
+MONSOON_SAFETY_GUIDELINES: list[dict[str, Any]] = [
     {
         "id": "PRE_MONSOON_PREP",
         "category": "preparedness",
@@ -74,11 +73,12 @@ MONSOON_SAFETY_GUIDELINES: List[Dict[str, Any]] = [
     },
 ]
 
+
 def get_relevant_guidelines(query: str) -> str:
     """Simple keyword matching to retrieve relevant safety guidelines for RAG context."""
     query_lower = query.lower()
     matches = []
-    
+
     for guide in MONSOON_SAFETY_GUIDELINES:
         # Match against title, category, phase, or content keywords
         if (
@@ -91,6 +91,9 @@ def get_relevant_guidelines(query: str) -> str:
 
     if not matches:
         # Fallback to general safety guidelines
-        matches = [f"[{guide['title']}]:\n{guide['content']}" for guide in MONSOON_SAFETY_GUIDELINES[:2]]
+        matches = [
+            f"[{guide['title']}]:\n{guide['content']}"
+            for guide in MONSOON_SAFETY_GUIDELINES[:2]
+        ]
 
     return "\n\n".join(matches)

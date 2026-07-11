@@ -1,23 +1,23 @@
-"""
-Risk classification logic.
+"""Risk classification logic.
 Combines weather context + household profile to determine risk level.
 This is deterministic — no LLM involvement.
 """
 
-from src.domain.models.weather import WeatherContext, WeatherCondition
 from src.domain.models.household import HouseholdProfile, HousingType
 from src.domain.models.preparedness import RiskLevel, RiskSummary
+from src.domain.models.weather import WeatherCondition, WeatherContext
 
 
 def classify_risk(weather: WeatherContext, household: HouseholdProfile) -> RiskSummary:
-    """
-    Determine risk level based on weather and household context.
+    """Determine risk level based on weather and household context.
     Risk is escalated by vulnerability factors.
     """
     if not weather.data_available:
         return RiskSummary(
             level=RiskLevel.MODERATE,
-            reasons=["Weather data unavailable — defaulting to moderate risk as a precaution"],
+            reasons=[
+                "Weather data unavailable — defaulting to moderate risk as a precaution",
+            ],
         )
 
     base_score = 0
@@ -29,7 +29,9 @@ def classify_risk(weather: WeatherContext, household: HouseholdProfile) -> RiskS
     # IMD classification thresholds
     if forecast_24h_mm >= 124.5:
         base_score += 50
-        reasons.append(f"Extremely heavy rainfall forecast: {forecast_24h_mm:.1f}mm in 24h")
+        reasons.append(
+            f"Extremely heavy rainfall forecast: {forecast_24h_mm:.1f}mm in 24h",
+        )
     elif forecast_24h_mm >= 64.5:
         base_score += 35
         reasons.append(f"Very heavy rainfall forecast: {forecast_24h_mm:.1f}mm in 24h")
@@ -65,7 +67,10 @@ def classify_risk(weather: WeatherContext, household: HouseholdProfile) -> RiskS
     vulnerability_multiplier = 1.0
 
     # Housing type vulnerability
-    if household.housing_type in (HousingType.KUTCHA_HOUSE, HousingType.TEMPORARY_SHELTER):
+    if household.housing_type in (
+        HousingType.KUTCHA_HOUSE,
+        HousingType.TEMPORARY_SHELTER,
+    ):
         vulnerability_multiplier += 0.4
         reasons.append(f"High vulnerability: {household.housing_type.value} housing")
     elif household.housing_type == HousingType.GROUND_FLOOR:
@@ -73,7 +78,9 @@ def classify_risk(weather: WeatherContext, household: HouseholdProfile) -> RiskS
         reasons.append("Elevated flood risk: ground floor residence")
     elif household.housing_type == HousingType.SLUM:
         vulnerability_multiplier += 0.5
-        reasons.append("High vulnerability: slum area — limited drainage infrastructure")
+        reasons.append(
+            "High vulnerability: slum area — limited drainage infrastructure",
+        )
 
     # Near water body
     if household.near_water_body:

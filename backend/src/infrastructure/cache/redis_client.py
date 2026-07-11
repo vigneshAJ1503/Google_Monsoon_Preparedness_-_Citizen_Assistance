@@ -1,10 +1,10 @@
-"""
-Redis client and connection manager.
+"""Redis client and connection manager.
 Provides caching functionality with TTL support.
 """
 
-from typing import Optional
+
 import redis.asyncio as aioredis
+
 from src.config import settings
 from src.observability.logger import get_logger
 
@@ -14,10 +14,10 @@ logger = get_logger(__name__)
 class RedisManager:
     """Manages Redis connection lifecycle and caching operations."""
 
-    def __init__(self):
-        self._client: Optional[aioredis.Redis] = None
+    def __init__(self) -> None:
+        self._client: aioredis.Redis | None = None
 
-    async def connect(self):
+    async def connect(self) -> None:
         """Establish Redis connection."""
         if self._client is not None:
             return
@@ -34,10 +34,10 @@ class RedisManager:
             await self._client.ping()
             logger.info("redis_connected_successfully")
         except Exception as e:
-            logger.error("redis_connection_failed", error=str(e))
+            logger.exception("redis_connection_failed", error=str(e))
             self._client = None
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Close Redis connection."""
         if self._client is None:
             return
@@ -46,7 +46,7 @@ class RedisManager:
             await self._client.close()
             logger.info("redis_disconnected")
         except Exception as e:
-            logger.error("redis_disconnect_failed", error=str(e))
+            logger.exception("redis_disconnect_failed", error=str(e))
         finally:
             self._client = None
 
@@ -54,7 +54,8 @@ class RedisManager:
     def client(self) -> aioredis.Redis:
         """Get the active Redis client. Raises RuntimeError if not connected."""
         if self._client is None:
-            raise RuntimeError("Redis client is not initialized. Call connect() first.")
+            msg = "Redis client is not initialized. Call connect() first."
+            raise RuntimeError(msg)
         return self._client
 
     @property
@@ -62,17 +63,17 @@ class RedisManager:
         """Check if Redis connection is active."""
         return self._client is not None
 
-    async def get(self, key: str) -> Optional[str]:
+    async def get(self, key: str) -> str | None:
         """Get value from cache."""
         if not self.is_connected:
             return None
         try:
             return await self._client.get(key)
         except Exception as e:
-            logger.error("redis_get_failed", key=key, error=str(e))
+            logger.exception("redis_get_failed", key=key, error=str(e))
             return None
 
-    async def set(self, key: str, value: str, ttl: Optional[int] = None) -> bool:
+    async def set(self, key: str, value: str, ttl: int | None = None) -> bool:
         """Set value in cache with optional TTL (seconds)."""
         if not self.is_connected:
             return False
@@ -83,7 +84,7 @@ class RedisManager:
                 await self._client.set(key, value)
             return True
         except Exception as e:
-            logger.error("redis_set_failed", key=key, error=str(e))
+            logger.exception("redis_set_failed", key=key, error=str(e))
             return False
 
     async def delete(self, key: str) -> bool:
@@ -94,7 +95,7 @@ class RedisManager:
             await self._client.delete(key)
             return True
         except Exception as e:
-            logger.error("redis_delete_failed", key=key, error=str(e))
+            logger.exception("redis_delete_failed", key=key, error=str(e))
             return False
 
 

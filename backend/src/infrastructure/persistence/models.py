@@ -1,12 +1,22 @@
-"""
-SQLAlchemy ORM models.
+"""SQLAlchemy ORM models.
 Maps database tables to Python objects.
 """
 
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, Boolean, Double, DateTime, ForeignKey, Text, Index
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Double,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
 from src.infrastructure.persistence.database import Base
@@ -28,19 +38,33 @@ class HouseholdModel(Base):
     accessibility_needs = Column(Text, nullable=True)
     preferred_language = Column(String(10), default="en")
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow,
+    )
 
     # Relationships
-    checklist_items = relationship("ChecklistItemModel", back_populates="household", cascade="all, delete-orphan")
-    chat_messages = relationship("ChatMessageModel", back_populates="household", cascade="all, delete-orphan")
-    plans = relationship("PreparednessPlanModel", back_populates="household", cascade="all, delete-orphan")
+    checklist_items = relationship(
+        "ChecklistItemModel", back_populates="household", cascade="all, delete-orphan",
+    )
+    chat_messages = relationship(
+        "ChatMessageModel", back_populates="household", cascade="all, delete-orphan",
+    )
+    plans = relationship(
+        "PreparednessPlanModel",
+        back_populates="household",
+        cascade="all, delete-orphan",
+    )
 
 
 class ChecklistItemModel(Base):
     __tablename__ = "checklist_items"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    household_id = Column(UUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), nullable=False)
+    household_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("households.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
     category = Column(String(100), nullable=True)
@@ -48,7 +72,9 @@ class ChecklistItemModel(Base):
     priority = Column(Integer, default=0)
     weather_context = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow,
+    )
 
     # Relationships
     household = relationship("HouseholdModel", back_populates="checklist_items")
@@ -75,7 +101,13 @@ class AlertModel(Base):
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
     __table_args__ = (
-        Index("idx_alerts_rule_location", "rule_id", "location_lat", "location_lng", "triggered_at"),
+        Index(
+            "idx_alerts_rule_location",
+            "rule_id",
+            "location_lat",
+            "location_lng",
+            "triggered_at",
+        ),
         Index("idx_alerts_active", "is_active", "expires_at"),
     )
 
@@ -84,7 +116,11 @@ class ChatMessageModel(Base):
     __tablename__ = "chat_messages"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    household_id = Column(UUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), nullable=False)
+    household_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("households.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     role = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
     metadata_json = Column("metadata", JSONB, nullable=True)
@@ -93,16 +129,18 @@ class ChatMessageModel(Base):
     # Relationships
     household = relationship("HouseholdModel", back_populates="chat_messages")
 
-    __table_args__ = (
-        Index("idx_chat_household", "household_id", "created_at"),
-    )
+    __table_args__ = (Index("idx_chat_household", "household_id", "created_at"),)
 
 
 class PreparednessPlanModel(Base):
     __tablename__ = "preparedness_plans"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    household_id = Column(UUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), nullable=False)
+    household_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("households.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     plan_data = Column(JSONB, nullable=False)
     weather_context = Column(JSONB, nullable=True)
     risk_level = Column(String(20), nullable=True)
@@ -112,6 +150,4 @@ class PreparednessPlanModel(Base):
     # Relationships
     household = relationship("HouseholdModel", back_populates="plans")
 
-    __table_args__ = (
-        Index("idx_plans_household", "household_id", "generated_at"),
-    )
+    __table_args__ = (Index("idx_plans_household", "household_id", "generated_at"),)

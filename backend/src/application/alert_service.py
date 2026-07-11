@@ -1,21 +1,23 @@
-"""
-Alert Service.
+"""Alert Service.
 Manages deterministic alert rules execution, deduplication, cooldowns,
 NDMA integrations, and optional citizen-friendly rewrites.
 """
 
-from datetime import datetime, timezone, timedelta
-from typing import List, Optional
-from uuid import UUID
+from datetime import datetime, timedelta
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.domain.models.alert import Alert, AlertSeverity, AlertSource, AlertEvaluation
-from src.domain.rules.alert_rules import evaluate_all_rules, get_rule_by_id, format_alert_message
 from src.application.weather_service import weather_service
-from src.infrastructure.persistence.repositories import AlertRepository
+from src.domain.models.alert import Alert, AlertSource
+from src.domain.rules.alert_rules import (
+    evaluate_all_rules,
+    format_alert_message,
+    get_rule_by_id,
+)
 from src.infrastructure.alerts.ndma_client import ndma_client
 from src.infrastructure.llm.gemini_client import gemini_client
 from src.infrastructure.llm.prompt_templates import SYSTEM_SAFETY_POLICY
+from src.infrastructure.persistence.repositories import AlertRepository
 from src.observability.logger import get_logger
 
 logger = get_logger(__name__)
@@ -25,16 +27,15 @@ class AlertService:
     """Orchestrates alerts evaluation, dedup, cooldown and NDMA syncing."""
 
     async def get_alerts_for_location(
-        self, lat: float, lng: float, db: AsyncSession
-    ) -> List[Alert]:
-        """
-        Evaluate alert rules against location weather and return active alerts.
+        self, lat: float, lng: float, db: AsyncSession,
+    ) -> list[Alert]:
+        """Evaluate alert rules against location weather and return active alerts.
         Steps:
         1. Fetch weather context
         2. Evaluate deterministic rules
         3. Dedup & enforce cooldown checks
         4. Sync current NDMA alerts
-        5. Returns active alerts (with LLM-friendly descriptions if active)
+        5. Returns active alerts (with LLM-friendly descriptions if active).
         """
         # 1. Fetch weather
         weather = await weather_service.get_weather_context(lat, lng)
@@ -59,9 +60,9 @@ class AlertService:
             # 3. Deduplication and Cooldown checks
             min_time = datetime.utcnow() - timedelta(minutes=rule.cooldown_minutes)
             recent_alerts = await repo.get_by_rule_and_location(
-                rule_id=rule.id, lat=lat, lng=lng, min_time=min_time
+                rule_id=rule.id, lat=lat, lng=lng, min_time=min_time,
             )
-            
+
             if recent_alerts:
                 # Active cooldown: do not save or log new alert
                 logger.info(
@@ -126,12 +127,13 @@ class AlertService:
                     and abs(ndma.location_lng - lng) < 0.3
                 ):
                     active_alerts.append(ndma)
-            else:
-                # If geolocated alert doesn't list coords but has region/state matching, we add it
-                # For simplicity, we add it if matches the state we got from reverse geocoding
-                if weather.current.location_name and ndma.location_name:
-                    if ndma.location_name.lower() in weather.current.location_name.lower():
-                        active_alerts.append(ndma)
+            # If geolocated alert doesn't list coords but has region/state matching, we add it
+            # For simplicity, we add it if matches the state we got from reverse geocoding
+            elif weather.current.location_name and ndma.location_name and (
+                ndma.location_name.lower()
+                in weather.current.location_name.lower()
+            ):
+                active_alerts.append(ndma)
 
         return active_alerts
 

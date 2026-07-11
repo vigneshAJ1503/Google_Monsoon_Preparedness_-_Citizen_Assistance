@@ -1,22 +1,27 @@
-"""
-Preparedness Service.
+"""Preparedness Service.
 Generates personalized preparedness plans using weather, risk, and Groq AI (free tier).
 Includes a robust deterministic fallback plan generator if LLM is unavailable or fails.
 """
 
 from datetime import datetime, timezone
-import json
 from uuid import UUID
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.domain.models.household import HouseholdProfile, HousingType
-from src.domain.models.preparedness import PreparednessePlan, RiskSummary, ActionItem
-from src.domain.rules.risk_classifier import classify_risk
 from src.application.weather_service import weather_service
-from src.infrastructure.llm.groq_client import groq_client
-from src.infrastructure.llm.prompt_templates import SYSTEM_SAFETY_POLICY, PREPAREDNESS_PLAN_PROMPT
+from src.domain.models.household import HouseholdProfile, HousingType
+from src.domain.models.preparedness import ActionItem, PreparednessePlan, RiskSummary
+from src.domain.rules.risk_classifier import classify_risk
 from src.infrastructure.llm.context_builder import build_preparedness_plan_prompt_vars
-from src.infrastructure.persistence.repositories import PreparednessPlanRepository, AlertRepository
+from src.infrastructure.llm.groq_client import groq_client
+from src.infrastructure.llm.prompt_templates import (
+    PREPAREDNESS_PLAN_PROMPT,
+    SYSTEM_SAFETY_POLICY,
+)
+from src.infrastructure.persistence.repositories import (
+    AlertRepository,
+    PreparednessPlanRepository,
+)
 from src.observability.logger import get_logger
 
 logger = get_logger(__name__)
@@ -26,16 +31,15 @@ class PreparednessService:
     """Manages the creation and retrieval of personalized preparedness plans."""
 
     async def generate_plan(
-        self, household: HouseholdProfile, db: AsyncSession, bypass_cache: bool = False
+        self, household: HouseholdProfile, db: AsyncSession, bypass_cache: bool = False,
     ) -> PreparednessePlan:
-        """
-        Generate a personalized preparedness plan.
+        """Generate a personalized preparedness plan.
         Steps:
         1. Fetch weather context
         2. Classify risk level deterministically
         3. Fetch active alerts
         4. Attempt Groq LLM generation with schema (free tier)
-        5. Fallback to local deterministic rules if Groq fails/not configured
+        5. Fallback to local deterministic rules if Groq fails/not configured.
         """
         household_id = UUID(household.id) if household.id else None
         repo = PreparednessPlanRepository(db)
@@ -46,14 +50,18 @@ class PreparednessService:
             if cached:
                 now = datetime.utcnow().replace(tzinfo=timezone.utc)
                 # Parse timezone safely
-                expires = cached.expires_at.replace(tzinfo=timezone.utc) if cached.expires_at else None
+                expires = (
+                    cached.expires_at.replace(tzinfo=timezone.utc)
+                    if cached.expires_at
+                    else None
+                )
                 if not expires or expires > now:
                     logger.info("plan_cache_hit", household_id=str(household_id))
                     return PreparednessePlan(**cached.plan_data)
 
         # 1. Weather
         weather = await weather_service.get_weather_context(
-            household.location_lat, household.location_lng
+            household.location_lat, household.location_lng,
         )
 
         # 2. Risk Classification
@@ -82,7 +90,11 @@ class PreparednessService:
             try:
                 # 4. Groq structured generation
                 prompt_vars = build_preparedness_plan_prompt_vars(
-                    weather, household, risk_summary.level.value, risk_summary.reasons, matched_alerts
+                    weather,
+                    household,
+                    risk_summary.level.value,
+                    risk_summary.reasons,
+                    matched_alerts,
                 )
                 prompt = PREPAREDNESS_PLAN_PROMPT.format(**prompt_vars)
 
@@ -91,27 +103,34 @@ class PreparednessService:
                     response_schema=PreparednessePlan,
                     system_instruction=SYSTEM_SAFETY_POLICY,
                 )
-                
+
                 # Tag generation metadata
                 plan.generated_at = datetime.utcnow().isoformat()
-                plan.data_sources = ["Open-Meteo", "NDMA Alerts", "Groq Llama 3.1 (Free)"]
+                plan.data_sources = [
+                    "Open-Meteo",
+                    "NDMA Alerts",
+                    "Groq Llama 3.1 (Free)",
+                ]
                 logger.info("plan_generated_via_llm", household_id=str(household_id))
             except Exception as e:
-                logger.error("llm_plan_generation_failed_falling_back", error=str(e))
+                logger.exception("llm_plan_generation_failed_falling_back", error=str(e))
 
         # 5. Deterministic fallback plan if Groq is disabled or fails
         if plan is None:
             plan = self._generate_deterministic_fallback_plan(
-                weather, household, risk_summary, matched_alerts
+                weather, household, risk_summary, matched_alerts,
             )
-            logger.info("plan_generated_via_deterministic_fallback", household_id=str(household_id))
+            logger.info(
+                "plan_generated_via_deterministic_fallback",
+                household_id=str(household_id),
+            )
 
         # Cache plan
         if household_id:
             await repo.save(
                 household_id=household_id,
-                plan_data=plan.model_dump(mode='json'),
-                weather_context=weather.model_dump(mode='json'),
+                plan_data=plan.model_dump(mode="json"),
+                weather_context=weather.model_dump(mode="json"),
                 risk_level=risk_summary.level.value,
                 ttl_hours=1,
             )
@@ -141,42 +160,74 @@ class PreparednessService:
 
         # Common rules
         immediate.append(
-            ActionItem(action="Charge all mobile phones and emergency lanterns immediately.", priority=5, category="safety")
+            ActionItem(
+                action="Charge all mobile phones and emergency lanterns immediately.",
+                priority=5,
+                category="safety",
+            ),
         )
         next_6.append(
-            ActionItem(action="Store drinking water in clean containers.", priority=4, category="supplies")
+            ActionItem(
+                action="Store drinking water in clean containers.",
+                priority=4,
+                category="supplies",
+            ),
         )
 
         # Weather-based actions
         if weather.current.rainfall.forecast_mm >= 50.0:
             immediate.append(
-                ActionItem(action="Move valuable electronic appliances off the floor.", priority=5, category="property")
+                ActionItem(
+                    action="Move valuable electronic appliances off the floor.",
+                    priority=5,
+                    category="property",
+                ),
             )
             next_24.append(
-                ActionItem(action="Ensure vehicle is parked on elevated ground away from trees.", priority=4, category="property")
+                ActionItem(
+                    action="Ensure vehicle is parked on elevated ground away from trees.",
+                    priority=4,
+                    category="property",
+                ),
             )
 
         if weather.current.wind.speed_kmph >= 50.0:
             immediate.append(
-                ActionItem(action="Close and secure all doors and windows.", priority=5, category="property")
+                ActionItem(
+                    action="Close and secure all doors and windows.",
+                    priority=5,
+                    category="property",
+                ),
             )
 
         # Vulnerability-based actions
         if household.has_children:
             hh_specific.append(
-                ActionItem(action="Keep children indoors. Prepare baby formula and snacks.", priority=5, category="safety")
+                ActionItem(
+                    action="Keep children indoors. Prepare baby formula and snacks.",
+                    priority=5,
+                    category="safety",
+                ),
             )
             kit.append("Baby food, milk powder, and extra diapers")
 
         if household.has_elderly:
             hh_specific.append(
-                ActionItem(action="Check prescriptions and keep elderly mobility aids accessible.", priority=5, category="medical")
+                ActionItem(
+                    action="Check prescriptions and keep elderly mobility aids accessible.",
+                    priority=5,
+                    category="medical",
+                ),
             )
             kit.append("Elderly medicines list and essential prescription files")
 
         if household.has_pets:
             hh_specific.append(
-                ActionItem(action="Bring pets indoors. Prepare a collar and leash.", priority=4, category="safety")
+                ActionItem(
+                    action="Bring pets indoors. Prepare a collar and leash.",
+                    priority=4,
+                    category="safety",
+                ),
             )
             kit.append("Pet food and clean water supply")
 
@@ -186,13 +237,15 @@ class PreparednessService:
                     action="Vulnerable structure: Identify and prepare to evacuate to the nearest official concrete shelter.",
                     priority=5,
                     category="evacuation",
-                )
+                ),
             )
 
         # Active alert actions
         for a in alerts:
             immediate.append(
-                ActionItem(action=f"ALERT RULE: {a.description}", priority=5, category="safety")
+                ActionItem(
+                    action=f"ALERT RULE: {a.description}", priority=5, category="safety",
+                ),
             )
 
         return PreparednessePlan(

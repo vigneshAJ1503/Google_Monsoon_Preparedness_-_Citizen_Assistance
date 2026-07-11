@@ -1,5 +1,4 @@
-"""
-Monsoon season detection for India.
+"""Monsoon season detection for India.
 Determines the current phase of the Indian monsoon based on date and region.
 
 Indian Monsoon Timeline:
@@ -12,8 +11,7 @@ Indian Monsoon Timeline:
 Tamil Nadu exception: Gets most rain during northeast monsoon (Oct-Dec).
 """
 
-from datetime import date, datetime
-from typing import Optional
+from datetime import date
 from enum import Enum
 
 
@@ -29,18 +27,33 @@ class MonsoonPhase(str, Enum):
 
 
 # Indian state groupings by monsoon pattern
-SOUTH_INDIA_STATES = {"Kerala", "Tamil Nadu", "Karnataka", "Andhra Pradesh", "Telangana", "Puducherry", "Goa"}
+SOUTH_INDIA_STATES = {
+    "Kerala",
+    "Tamil Nadu",
+    "Karnataka",
+    "Andhra Pradesh",
+    "Telangana",
+    "Puducherry",
+    "Goa",
+}
 NORTHEAST_MONSOON_STATES = {"Tamil Nadu", "Puducherry", "Andhra Pradesh (coastal)"}
-NORTH_INDIA_STATES = {"Delhi", "Uttar Pradesh", "Bihar", "Rajasthan", "Madhya Pradesh", "Punjab", "Haryana"}
+NORTH_INDIA_STATES = {
+    "Delhi",
+    "Uttar Pradesh",
+    "Bihar",
+    "Rajasthan",
+    "Madhya Pradesh",
+    "Punjab",
+    "Haryana",
+}
 
 
 def get_monsoon_phase(
-    check_date: Optional[date] = None,
-    state: Optional[str] = None,
-    latitude: Optional[float] = None,
+    check_date: date | None = None,
+    state: str | None = None,
+    latitude: float | None = None,
 ) -> MonsoonPhase:
-    """
-    Determine the current monsoon phase for a given date and region.
+    """Determine the current monsoon phase for a given date and region.
 
     Uses latitude as a rough proxy when state is not provided.
     South India (lat < 15): earlier onset, northeast monsoon relevance.
@@ -67,43 +80,39 @@ def get_monsoon_phase(
     if is_tamil_nadu_region:
         if month in (10, 11, 12):
             return MonsoonPhase.NORTHEAST_MONSOON
-        elif month in (6, 7, 8, 9):
+        if month in (6, 7, 8, 9):
             return MonsoonPhase.ACTIVE  # SW monsoon still brings some rain
-        elif month in (3, 4, 5):
+        if month in (3, 4, 5):
             return MonsoonPhase.PRE_MONSOON
-        else:
-            return MonsoonPhase.DRY_SEASON
+        return MonsoonPhase.DRY_SEASON
 
     # --- Rest of India: Southwest monsoon pattern ---
     if month in (3, 4, 5):
         return MonsoonPhase.PRE_MONSOON
 
-    elif month == 6:
-        if is_south and day <= 10:
-            return MonsoonPhase.ONSET
-        elif not is_south and day <= 20:
+    if month == 6:
+        if (is_south and day <= 10) or (not is_south and day <= 20):
             return MonsoonPhase.ONSET
         return MonsoonPhase.ACTIVE
 
-    elif month in (7, 8):
+    if month in (7, 8):
         return MonsoonPhase.PEAK
 
-    elif month == 9:
+    if month == 9:
         if day <= 15:
             return MonsoonPhase.ACTIVE
         return MonsoonPhase.RETREATING
 
-    elif month in (10, 11):
+    if month in (10, 11):
         return MonsoonPhase.RETREATING
 
-    else:
-        return MonsoonPhase.DRY_SEASON
+    return MonsoonPhase.DRY_SEASON
 
 
 def is_monsoon_season(
-    check_date: Optional[date] = None,
-    state: Optional[str] = None,
-    latitude: Optional[float] = None,
+    check_date: date | None = None,
+    state: str | None = None,
+    latitude: float | None = None,
 ) -> bool:
     """Check if the current date falls within any active monsoon phase."""
     phase = get_monsoon_phase(check_date, state, latitude)
@@ -116,9 +125,9 @@ def is_monsoon_season(
 
 
 def get_monsoon_context(
-    check_date: Optional[date] = None,
-    state: Optional[str] = None,
-    latitude: Optional[float] = None,
+    check_date: date | None = None,
+    state: str | None = None,
+    latitude: float | None = None,
 ) -> dict:
     """Get human-readable monsoon context for LLM grounding."""
     phase = get_monsoon_phase(check_date, state, latitude)

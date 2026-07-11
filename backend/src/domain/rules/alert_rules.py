@@ -1,16 +1,13 @@
-"""
-Deterministic alert rules engine.
-Per spec: 'The LLM must NOT decide whether an emergency alert should be triggered.'
+"""Deterministic alert rules engine.
+Per spec: 'The LLM must NOT decide whether an emergency alert should be triggered.'.
 
 All alert decisions are made by evaluating weather data against fixed thresholds.
 The LLM may only rewrite already-validated alerts into citizen-friendly language.
 """
 
-from datetime import datetime, timedelta
-from typing import Optional
 
-from src.domain.models.alert import AlertRule, AlertSeverity, AlertEvaluation
-from src.domain.models.weather import WeatherContext, WeatherCondition
+from src.domain.models.alert import AlertEvaluation, AlertRule, AlertSeverity
+from src.domain.models.weather import WeatherContext
 from src.observability.logger import get_logger
 
 logger = get_logger(__name__)
@@ -152,8 +149,7 @@ ALERT_RULES: list[AlertRule] = [
 
 
 def evaluate_rule(rule: AlertRule, weather: WeatherContext) -> AlertEvaluation:
-    """
-    Evaluate a single alert rule against weather data.
+    """Evaluate a single alert rule against weather data.
     This is PURE DETERMINISTIC logic — no AI, no guessing.
     """
     current = weather.current
@@ -205,27 +201,38 @@ def evaluate_rule(rule: AlertRule, weather: WeatherContext) -> AlertEvaluation:
             continue
 
         else:
-            logger.warning("unknown_alert_condition", rule_id=rule.id, condition=condition_key)
+            logger.warning(
+                "unknown_alert_condition", rule_id=rule.id, condition=condition_key,
+            )
             triggered = False
             break
 
     reason = None
     if triggered:
-        reason = f"Threshold met: {source_value} >= {threshold_value}" if threshold_value else "Condition matched"
+        reason = (
+            f"Threshold met: {source_value} >= {threshold_value}"
+            if threshold_value
+            else "Condition matched"
+        )
 
     return AlertEvaluation(
         rule_id=rule.id,
         triggered=triggered,
         severity=rule.severity if triggered else None,
         reason=reason,
-        source_value=float(source_value) if isinstance(source_value, (int, float)) else None,
-        threshold_value=float(threshold_value) if isinstance(threshold_value, (int, float)) else None,
+        source_value=(
+            float(source_value) if isinstance(source_value, (int, float)) else None
+        ),
+        threshold_value=(
+            float(threshold_value)
+            if isinstance(threshold_value, (int, float))
+            else None
+        ),
     )
 
 
 def evaluate_all_rules(weather: WeatherContext) -> list[AlertEvaluation]:
-    """
-    Evaluate all alert rules against current weather.
+    """Evaluate all alert rules against current weather.
     Returns list of evaluations (both triggered and not triggered).
     """
     if not weather.data_available:
@@ -251,7 +258,7 @@ def evaluate_all_rules(weather: WeatherContext) -> list[AlertEvaluation]:
     return evaluations
 
 
-def get_rule_by_id(rule_id: str) -> Optional[AlertRule]:
+def get_rule_by_id(rule_id: str) -> AlertRule | None:
     """Get a rule definition by ID."""
     for rule in ALERT_RULES:
         if rule.id == rule_id:

@@ -1,17 +1,22 @@
-"""
-Simple rate limiter using Redis.
-"""
+"""Simple rate limiter using Redis."""
 
-from fastapi import Request, HTTPException
-from src.infrastructure.cache.redis_client import redis_manager
+from fastapi import HTTPException, Request
+from redis.exceptions import RedisError
+
 from src.config import settings
+from src.infrastructure.cache.redis_client import redis_manager
 from src.observability.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-async def check_rate_limit(request: Request):
-    """Check if the client has exceeded the rate limit."""
+async def check_rate_limit(request: Request) -> None:
+    """Check if the client has exceeded the rate limit.
+
+    Args:
+        request: Incoming HTTP request
+
+    """
     if not redis_manager.is_connected:
         # If Redis is down, allow the request (fail open for availability)
         return
@@ -32,6 +37,6 @@ async def check_rate_limit(request: Request):
             )
     except HTTPException:
         raise
-    except Exception as e:
+    except RedisError as e:
         # Rate limiting failure should not break the application
-        logger.error("rate_limit_error", error=str(e))
+        logger.exception("rate_limit_error", error=str(e))

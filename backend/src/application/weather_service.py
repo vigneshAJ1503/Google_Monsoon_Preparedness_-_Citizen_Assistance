@@ -1,20 +1,24 @@
-"""
-Weather service orchestrating retrieval, caching, normalization,
+"""Weather service orchestrating retrieval, caching, normalization,
 and monsoon phase determination.
 """
 
-from datetime import datetime, timezone, date
 import json
-from typing import Optional
+from datetime import date, datetime, timezone
 
 from src.config import settings
-from src.domain.models.weather import WeatherContext, WeatherObservation, WeatherForecast
-from src.domain.rules.monsoon_season import is_monsoon_season, get_monsoon_phase
-from src.domain.exceptions.weather import StaleWeatherData
-from src.infrastructure.weather.open_meteo import open_meteo_client
-from src.infrastructure.weather.weather_normalizer import normalize_observation, normalize_forecast
-from src.infrastructure.geocoding.nominatim_client import nominatim_client
+from src.domain.models.weather import (
+    WeatherContext,
+    WeatherForecast,
+    WeatherObservation,
+)
+from src.domain.rules.monsoon_season import get_monsoon_phase, is_monsoon_season
 from src.infrastructure.cache.redis_client import redis_manager
+from src.infrastructure.geocoding.nominatim_client import nominatim_client
+from src.infrastructure.weather.open_meteo import open_meteo_client
+from src.infrastructure.weather.weather_normalizer import (
+    normalize_forecast,
+    normalize_observation,
+)
 from src.observability.logger import get_logger
 
 logger = get_logger(__name__)
@@ -24,10 +28,9 @@ class WeatherService:
     """Orchestrates weather operations across caches and providers."""
 
     async def get_weather_context(
-        self, lat: float, lng: float, bypass_cache: bool = False
+        self, lat: float, lng: float, bypass_cache: bool = False,
     ) -> WeatherContext:
-        """
-        Get combined weather context (observation + forecast + monsoon phase).
+        """Get combined weather context (observation + forecast + monsoon phase).
         Uses caching to avoid excessive external provider calls.
         """
         # Round coordinates for caching key stability (roughly ~1.1km grid)
@@ -39,10 +42,12 @@ class WeatherService:
             cached = await redis_manager.get(cache_key)
             if cached:
                 try:
-                    logger.info("weather_context_cache_hit", lat=cache_lat, lng=cache_lng)
+                    logger.info(
+                        "weather_context_cache_hit", lat=cache_lat, lng=cache_lng,
+                    )
                     data = json.loads(cached)
                     context = WeatherContext(**data)
-                    
+
                     # Verify freshness of cached context
                     obs_time = context.current.observed_at
                     now = datetime.now(timezone.utc)
@@ -50,14 +55,14 @@ class WeatherService:
                     if obs_time.tzinfo is None:
                         obs_time = obs_time.replace(tzinfo=timezone.utc)
                     age_seconds = int((now - obs_time).total_seconds())
-                    
+
                     if age_seconds > settings.weather_stale_threshold_seconds:
                         logger.warning("cached_weather_stale", age_seconds=age_seconds)
                         # We continue and update instead of raising StaleWeatherData to keep app available
                     else:
                         return context
                 except Exception as e:
-                    logger.error("parse_cached_weather_error", error=str(e))
+                    logger.exception("parse_cached_weather_error", error=str(e))
 
         try:
             # 1. Fetch raw weather from Open-Meteo
@@ -71,7 +76,7 @@ class WeatherService:
             location_details = await nominatim_client.reverse_geocode(lat, lng)
             state_name = location_details.state if location_details else None
             location_name = location_details.name if location_details else None
-            
+
             observation.location_name = location_name
             forecast.location_name = location_name
 
@@ -100,7 +105,7 @@ class WeatherService:
             return context
 
         except Exception as e:
-            logger.error("weather_context_fetch_failed", error=str(e))
+            logger.exception("weather_context_fetch_failed", error=str(e))
             # Return degraded state when provider fails
             return WeatherContext(
                 current=WeatherObservation(

@@ -1,17 +1,16 @@
-"""
-Open-Meteo API client.
+"""Open-Meteo API client.
 Fetches current weather, hourly forecast, and daily forecast.
-Per spec: 'Cache responses with an explicit TTL. Apply timeout and retry policies to external API calls. Avoid uncontrolled retry loops.'
+Per spec: 'Cache responses with an explicit TTL. Apply timeout and retry policies to external API calls. Avoid uncontrolled retry loops.'.
 """
 
+from typing import Any
+
 import httpx
-from datetime import datetime
-from typing import Dict, Any, Optional
 
 from src.config import settings
 from src.domain.exceptions.weather import WeatherProviderUnavailable
 from src.observability.logger import get_logger
-from src.observability.metrics import timer, metrics
+from src.observability.metrics import metrics, timer
 
 logger = get_logger(__name__)
 
@@ -19,14 +18,14 @@ logger = get_logger(__name__)
 class OpenMeteoClient:
     """Async client for the Open-Meteo API."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.base_url = settings.open_meteo_base_url
         self.client = httpx.AsyncClient(
             timeout=settings.weather_request_timeout_seconds,
             limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
         )
 
-    async def fetch_weather(self, lat: float, lng: float) -> Dict[str, Any]:
+    async def fetch_weather(self, lat: float, lng: float) -> dict[str, Any]:
         """Fetch current weather, daily forecast and hourly rain forecast."""
         params = {
             "latitude": lat,
@@ -63,7 +62,7 @@ class OpenMeteoClient:
         }
 
         url = f"{self.base_url}/forecast"
-        
+
         # Bounded retry loop (per spec)
         retries = settings.weather_max_retries
         for attempt in range(retries + 1):
@@ -76,18 +75,19 @@ class OpenMeteoClient:
                 )
                 with timer("open_meteo_request_duration"):
                     response = await self.client.get(url, params=params)
-                
+
                 if response.status_code == 200:
                     metrics.increment("open_meteo_success_rate")
                     return response.json()
-                
+
                 # Check for rate limiting
                 if response.status_code == 429:
                     metrics.increment("open_meteo_rate_limits")
                     logger.warning("open_meteo_rate_limited", status_code=429)
                     if attempt == retries:
+                        msg = "Open-Meteo"
                         raise WeatherProviderUnavailable(
-                            "Open-Meteo", f"Rate limited (status 429)"
+                            msg, "Rate limited (status 429)",
                         )
                 elif response.status_code >= 500:
                     metrics.increment("open_meteo_server_errors")
@@ -97,8 +97,9 @@ class OpenMeteoClient:
                         body=response.text,
                     )
                     if attempt == retries:
+                        msg = "Open-Meteo"
                         raise WeatherProviderUnavailable(
-                            "Open-Meteo", f"Server error: {response.status_code}"
+                            msg, f"Server error: {response.status_code}",
                         )
                 else:
                     logger.error(
@@ -106,25 +107,33 @@ class OpenMeteoClient:
                         status_code=response.status_code,
                         body=response.text,
                     )
+                    msg = "Open-Meteo"
                     raise WeatherProviderUnavailable(
-                        "Open-Meteo", f"Invalid request parameter or endpoint"
+                        msg, "Invalid request parameter or endpoint",
                     )
 
             except httpx.TimeoutException as e:
                 metrics.increment("open_meteo_timeouts")
                 logger.warning("open_meteo_timeout", attempt=attempt, error=str(e))
                 if attempt == retries:
-                    raise WeatherProviderUnavailable("Open-Meteo", "Connection timeout")
-            
+                    msg = "Open-Meteo"
+                    raise WeatherProviderUnavailable(msg, "Connection timeout")
+
             except httpx.RequestError as e:
                 metrics.increment("open_meteo_network_errors")
-                logger.warning("open_meteo_network_error", attempt=attempt, error=str(e))
+                logger.warning(
+                    "open_meteo_network_error", attempt=attempt, error=str(e),
+                )
                 if attempt == retries:
-                    raise WeatherProviderUnavailable("Open-Meteo", f"Network error: {str(e)}")
+                    msg = "Open-Meteo"
+                    raise WeatherProviderUnavailable(
+                        msg, f"Network error: {e!s}",
+                    )
 
-        raise WeatherProviderUnavailable("Open-Meteo", "Max retries exceeded")
+        msg = "Open-Meteo"
+        raise WeatherProviderUnavailable(msg, "Max retries exceeded")
 
-    async def close(self):
+    async def close(self) -> None:
         """Close connection pools."""
         await self.client.aclose()
 

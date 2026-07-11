@@ -1,11 +1,10 @@
-"""
-Alert domain models.
+"""Alert domain models.
 Alerts are safety-critical — their structure is deterministic, not AI-driven.
 """
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -24,10 +23,10 @@ class AlertSource(str, Enum):
 
 
 class AlertRule(BaseModel):
+    """Deterministic alert rule definition.
+    Per spec: 'The LLM must NOT decide whether an emergency alert should be triggered.'.
     """
-    Deterministic alert rule definition.
-    Per spec: 'The LLM must NOT decide whether an emergency alert should be triggered.'
-    """
+
     id: str  # e.g., "HEAVY_RAIN_PREPAREDNESS"
     name: str
     description: str
@@ -40,30 +39,32 @@ class AlertRule(BaseModel):
 
 class Alert(BaseModel):
     """An evaluated and triggered alert."""
-    id: Optional[str] = None
+
+    id: str | None = None
     rule_id: str
     severity: AlertSeverity
     title: str
     description: str
-    location_lat: Optional[float] = None
-    location_lng: Optional[float] = None
-    location_name: Optional[str] = None
+    location_lat: float | None = None
+    location_lng: float | None = None
+    location_name: str | None = None
     source: AlertSource
-    source_data: Optional[dict] = None  # The data that triggered this alert
-    weather_data_age_seconds: Optional[int] = None
+    source_data: dict | None = None  # The data that triggered this alert
+    weather_data_age_seconds: int | None = None
     triggered_at: datetime = Field(default_factory=datetime.utcnow)
-    expires_at: Optional[datetime] = None
+    expires_at: datetime | None = None
     is_active: bool = True
-    citizen_message: Optional[str] = None  # LLM-rewritten friendly message
+    citizen_message: str | None = None  # LLM-rewritten friendly message
 
 
 class AlertEvaluation(BaseModel):
     """Result of evaluating alert rules against weather data."""
+
     rule_id: str
     triggered: bool
-    severity: Optional[AlertSeverity] = None
-    reason: Optional[str] = None
-    source_value: Optional[float] = None
-    threshold_value: Optional[float] = None
+    severity: AlertSeverity | None = None
+    reason: str | None = None
+    source_value: float | None = None
+    threshold_value: float | None = None
     is_duplicate: bool = False
     is_in_cooldown: bool = False
