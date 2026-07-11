@@ -16,6 +16,14 @@ logger = get_logger(__name__)
 Base = declarative_base()
 
 
+def _get_async_database_url() -> str:
+    """Convert sync PostgreSQL URL to async URL for asyncpg."""
+    url = settings.database_url
+    if url.startswith("postgresql://") and not url.startswith("postgresql+asyncpg://"):
+        return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return url
+
+
 class DatabaseManager:
     """Manages PostgreSQL connection lifecycle and async sessions."""
 
@@ -29,9 +37,10 @@ class DatabaseManager:
             return
 
         try:
-            logger.info("connecting_to_database", url=settings.database_url)
+            async_url = _get_async_database_url()
+            logger.info("connecting_to_database", url=async_url)
             self._engine = create_async_engine(
-                settings.database_url,
+                async_url,
                 echo=settings.is_development and settings.log_level == "DEBUG",
                 future=True,
                 pool_size=10,
