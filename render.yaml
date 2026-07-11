@@ -1,13 +1,10 @@
 services:
   # PostgreSQL Database (Free tier - 90 days)
-  - type: postgres
+  - type: pserv
     name: monsoonprep-db
     plan: free
     region: oregon
     ipAllowList: []
-    database:
-      name: monsoonprep
-      user: monsoonprep
 
   # Redis Cache (Free tier)
   - type: redis
