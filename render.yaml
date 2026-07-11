@@ -5,10 +5,9 @@ services:
     plan: free
     region: oregon
     ipAllowList: []
-    databases:
-      - name: monsoonprep
-        databaseName: monsoonprep
-        user: monsoonprep
+    database:
+      name: monsoonprep
+      user: monsoonprep
 
   # Redis Cache (Free tier)
   - type: redis
