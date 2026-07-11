@@ -11,6 +11,9 @@ import hi from './i18n/hi.json';
 
 const translations = { en, ta, hi };
 
+// API base URL - uses env var in production, relative in dev
+const API_BASE = import.meta.env.VITE_API_BASE || '';
+
 export default function App() {
   // Application State
   const [lang, setLang] = useState('en');
@@ -63,14 +66,14 @@ export default function App() {
     setLoading(true);
     try {
       // 1. Fetch Weather
-      const wRes = await fetch(`/api/weather?latitude=${latitude}&longitude=${longitude}`);
+      const wRes = await fetch(`${API_BASE}/api/weather?latitude=${latitude}&longitude=${longitude}`);
       if (wRes.ok) {
         const wData = await wRes.json();
         setWeather(wData);
       }
 
       // 2. Fetch Alerts
-      const aRes = await fetch(`/api/alerts?latitude=${latitude}&longitude=${longitude}&language=${lang}`);
+      const aRes = await fetch(`${API_BASE}/api/alerts?latitude=${latitude}&longitude=${longitude}&language=${lang}`);
       if (aRes.ok) {
         const aData = await aRes.json();
         setAlerts(aData);
@@ -102,7 +105,7 @@ export default function App() {
         preferred_language: lang
       };
 
-      const res = await fetch('/api/preparedness/plan', {
+      const res = await fetch(`${API_BASE}/api/preparedness/plan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -133,7 +136,7 @@ export default function App() {
   // Fetch checklist status
   const loadChecklist = async (hhId) => {
     try {
-      const res = await fetch(`/api/checklist?household_id=${hhId}`);
+      const res = await fetch(`${API_BASE}/api/checklist?household_id=${hhId}`);
       if (res.ok) {
         const cData = await res.json();
         setChecklist(cData);
@@ -149,7 +152,7 @@ export default function App() {
     const newStatus = currentStatus === 'pending' ? 'completed' : 'pending';
     
     try {
-      const res = await fetch('/api/checklist/item', {
+      const res = await fetch(`${API_BASE}/api/checklist/item`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -184,7 +187,7 @@ export default function App() {
         household_id: checklist?.household_id || null
       };
 
-      const res = await fetch('/api/assistant/ask', {
+      const res = await fetch(`${API_BASE}/api/assistant/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -223,7 +226,7 @@ export default function App() {
         dest_lng: destLng,
         preferred_language: lang
       };
-      const res = await fetch('/api/travel/advisory', {
+      const res = await fetch(`${API_BASE}/api/travel/advisory`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
