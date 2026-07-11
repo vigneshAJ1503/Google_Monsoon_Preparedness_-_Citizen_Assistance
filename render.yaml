@@ -1,6 +1,6 @@
 services:
   # PostgreSQL Database (Free tier - 90 days)
-  - type: pserv
+  - type: postgres
     name: monsoonprep-db
     plan: free
     region: oregon
