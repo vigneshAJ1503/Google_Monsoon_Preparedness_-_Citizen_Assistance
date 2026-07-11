@@ -1,0 +1,93 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: monsoonprep-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-monsoonprep}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-monsoonprep_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-monsoonprep}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-monsoonprep}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - monsoonprep
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: monsoonprep-cache
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - monsoonprep
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: monsoonprep-api
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-monsoonprep}:${POSTGRES_PASSWORD:-monsoonprep_dev_password}@postgres:5432/${POSTGRES_DB:-monsoonprep}
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - monsoonprep
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: monsoonprep-ui
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - monsoonprep
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: monsoonprep-proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - monsoonprep
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  monsoonprep:
+    driver: bridge
