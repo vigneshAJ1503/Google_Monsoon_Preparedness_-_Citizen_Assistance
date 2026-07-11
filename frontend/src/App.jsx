@@ -12,7 +12,7 @@ import hi from './i18n/hi.json';
 const translations = { en, ta, hi };
 
 // API base URL - uses env var in production, relative in dev
-const API_BASE = import.meta.env.VITE_API_BASE || '';
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://monsoonprep-backend.onrender.com';
 
 export default function App() {
   // Application State
