@@ -13,7 +13,7 @@ from src.domain.models.weather import WeatherContext
 from src.domain.models.household import HouseholdProfile
 from src.domain.models.alert import Alert
 from src.application.weather_service import weather_service
-from src.infrastructure.llm.gemini_client import gemini_client
+from src.infrastructure.llm.groq_client import groq_client
 from src.infrastructure.llm.prompt_templates import SYSTEM_SAFETY_POLICY, ASSISTANT_QNA_PROMPT
 from src.infrastructure.llm.output_validator import clean_and_validate_response
 from src.infrastructure.llm.context_builder import build_assistant_qna_prompt_vars
@@ -76,8 +76,8 @@ class AssistantService:
 
         prompt = ASSISTANT_QNA_PROMPT.format(**prompt_vars)
 
-        # Determine if Gemini client is active
-        llm_ready = gemini_client._get_client() is not None
+        # Determine if Groq client is active
+        llm_ready = groq_client._get_client() is not None
 
         sources = ["National Disaster Management Guidelines (NDMA India)"]
         if weather.data_available:
@@ -88,7 +88,7 @@ class AssistantService:
         if llm_ready:
             try:
                 # 4. LLM Generation
-                raw_response = await gemini_client.generate_text(
+                raw_response = await groq_client.generate_text(
                     prompt=prompt,
                     system_instruction=SYSTEM_SAFETY_POLICY,
                 )
@@ -150,14 +150,14 @@ class AssistantService:
         if any(w in query_lower for w in ["lightning", "thunder", "storm"]):
             return (
                 "During a thunderstorm, stay indoors and keep away from electrical appliances, metal objects, and water taps. "
-                "If caught outside, seek shelter in a concrete building and avoid standing near tall trees or poles."
+                "Unplug sensitive electronics and avoid using wired phones."
             )
 
-        # General safety advice fallback
-        alert_desc = f" Verified alerts active: {alerts[0].title}." if alerts else " No severe alerts currently active."
+        # Default fallback with weather context
+        rain_info = f"Current rainfall forecast: {weather.current.rainfall.forecast_mm:.1f}mm."
         return (
-            f"The current weather reports {weather.current.condition.value} with forecast rainfall of {weather.current.rainfall.forecast_mm:.1f}mm."
-            f"{alert_desc} Always avoid waterlogged streets and consult official local authority directives for evacuation or travel safety."
+            f"For personalized monsoon safety guidance, please use the Preparedness Plan or Checklist features. "
+            f"{rain_info} Stay alert and follow official NDMA advisories."
         )
 
 

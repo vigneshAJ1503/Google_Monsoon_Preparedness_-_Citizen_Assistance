@@ -34,7 +34,7 @@ services:
         value: "8000"
       - key: LOG_LEVEL
         value: INFO
-      - key: GEMINI_API_KEY
+      - key: GROQ_API_KEY
         sync: false
       - key: DATABASE_URL
         fromDatabase:

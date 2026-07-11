@@ -12,7 +12,7 @@ from src.domain.models.travel import TravelAdvisory, TravelRiskLevel
 from src.application.weather_service import weather_service
 from src.application.alert_service import alert_service
 from src.infrastructure.geocoding.nominatim_client import nominatim_client
-from src.infrastructure.llm.gemini_client import gemini_client
+from src.infrastructure.llm.groq_client import groq_client
 from src.infrastructure.llm.prompt_templates import SYSTEM_SAFETY_POLICY, TRAVEL_ADVISORY_PROMPT
 from src.infrastructure.persistence.repositories import AlertRepository
 from src.observability.logger import get_logger
@@ -75,8 +75,8 @@ class TravelService:
         if risk_level == TravelRiskLevel.LOW:
             reasons.append("No active alerts or severe weather conditions reported along the route.")
 
-        # 5. Gemini-based personalized travel guidance
-        llm_ready = gemini_client._get_client() is not None
+        # 5. Groq-based personalized travel guidance
+        llm_ready = groq_client._get_client() is not None
         recommendations = []
         limitations = [
             "Road-level flooding data is unavailable, so I cannot verify that this route is clear.",
@@ -98,7 +98,7 @@ class TravelService:
                 )
 
                 # Fetch structured recommendation points from LLM
-                response_text = await gemini_client.generate_text(
+                response_text = await groq_client.generate_text(
                     prompt=prompt + "\nProvide exactly 3 concise, safety-critical advice bullet points. Do not mention road status.",
                     system_instruction=SYSTEM_SAFETY_POLICY,
                 )
@@ -130,7 +130,7 @@ class TravelService:
             ),
             active_alerts=[a.title for a in combined_alerts],
             limitations=limitations,
-            data_sources=["Open-Meteo API", "NDMA Alerts"],
+            data_sources=["Open-Meteo API", "NDMA Alerts", "Groq Llama 3.1 (Free)"],
             generated_at=datetime.utcnow().isoformat(),
         )
 

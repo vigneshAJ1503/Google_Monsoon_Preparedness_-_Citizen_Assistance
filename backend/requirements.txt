@@ -18,7 +18,10 @@ alembic==1.15.2
 # Redis cache
 redis[hiredis]==6.2.0
 
-# Google Gemini AI
+# Groq AI (Free tier - OpenAI compatible)
+openai==1.54.0
+
+# Google Gemini AI (Optional fallback)
 google-genai==1.16.1
 
 # Weather & Geospatial

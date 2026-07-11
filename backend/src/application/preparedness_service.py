@@ -1,6 +1,6 @@
 """
 Preparedness Service.
-Generates personalized preparedness plans using weather, risk, and Gemini AI.
+Generates personalized preparedness plans using weather, risk, and Groq AI (free tier).
 Includes a robust deterministic fallback plan generator if LLM is unavailable or fails.
 """
 
@@ -13,7 +13,7 @@ from src.domain.models.household import HouseholdProfile, HousingType
 from src.domain.models.preparedness import PreparednessePlan, RiskSummary, ActionItem
 from src.domain.rules.risk_classifier import classify_risk
 from src.application.weather_service import weather_service
-from src.infrastructure.llm.gemini_client import gemini_client
+from src.infrastructure.llm.groq_client import groq_client
 from src.infrastructure.llm.prompt_templates import SYSTEM_SAFETY_POLICY, PREPAREDNESS_PLAN_PROMPT
 from src.infrastructure.llm.context_builder import build_preparedness_plan_prompt_vars
 from src.infrastructure.persistence.repositories import PreparednessPlanRepository, AlertRepository
@@ -34,8 +34,8 @@ class PreparednessService:
         1. Fetch weather context
         2. Classify risk level deterministically
         3. Fetch active alerts
-        4. Attempt Gemini LLM generation with schema
-        5. Fallback to local deterministic rules if Gemini fails/not configured
+        4. Attempt Groq LLM generation with schema (free tier)
+        5. Fallback to local deterministic rules if Groq fails/not configured
         """
         household_id = UUID(household.id) if household.id else None
         repo = PreparednessPlanRepository(db)
@@ -74,19 +74,19 @@ class PreparednessService:
                 ):
                     matched_alerts.append(a)
 
-        # Check if LLM is available
-        llm_ready = gemini_client._get_client() is not None
+        # Check if LLM is available (Groq free tier)
+        llm_ready = groq_client._get_client() is not None
 
         plan = None
         if llm_ready:
             try:
-                # 4. Gemini structured generation
+                # 4. Groq structured generation
                 prompt_vars = build_preparedness_plan_prompt_vars(
                     weather, household, risk_summary.level.value, risk_summary.reasons, matched_alerts
                 )
                 prompt = PREPAREDNESS_PLAN_PROMPT.format(**prompt_vars)
 
-                plan = await gemini_client.generate_structured(
+                plan = await groq_client.generate_structured(
                     prompt=prompt,
                     response_schema=PreparednessePlan,
                     system_instruction=SYSTEM_SAFETY_POLICY,
@@ -94,12 +94,12 @@ class PreparednessService:
                 
                 # Tag generation metadata
                 plan.generated_at = datetime.utcnow().isoformat()
-                plan.data_sources = ["Open-Meteo", "NDMA Alerts", "Google Gemini AI"]
+                plan.data_sources = ["Open-Meteo", "NDMA Alerts", "Groq Llama 3.1 (Free)"]
                 logger.info("plan_generated_via_llm", household_id=str(household_id))
             except Exception as e:
                 logger.error("llm_plan_generation_failed_falling_back", error=str(e))
 
-        # 5. Deterministic fallback plan if Gemini is disabled or fails
+        # 5. Deterministic fallback plan if Groq is disabled or fails
         if plan is None:
             plan = self._generate_deterministic_fallback_plan(
                 weather, household, risk_summary, matched_alerts

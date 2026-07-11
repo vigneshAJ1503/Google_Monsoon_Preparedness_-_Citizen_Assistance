@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     gemini_timeout_seconds: int = Field(default=30, alias="GEMINI_TIMEOUT_SECONDS")
     gemini_max_output_tokens: int = Field(default=2048, alias="GEMINI_MAX_OUTPUT_TOKENS")
 
+    # --- Groq AI (Free tier: 14,400 req/day for Llama 3.1 8B) ---
+    groq_api_key: Optional[str] = Field(default=None, alias="GROQ_API_KEY")
+    groq_model: str = Field(default="llama-3.1-8b-instant", alias="GROQ_MODEL")
+    groq_timeout_seconds: int = Field(default=30, alias="GROQ_TIMEOUT_SECONDS")
+    groq_max_output_tokens: int = Field(default=2048, alias="GROQ_MAX_OUTPUT_TOKENS")
+
     # --- Weather (Open-Meteo — no API key needed) ---
     open_meteo_base_url: str = "https://api.open-meteo.com/v1"
     open_meteo_archive_url: str = "https://archive-api.open-meteo.com/v1"

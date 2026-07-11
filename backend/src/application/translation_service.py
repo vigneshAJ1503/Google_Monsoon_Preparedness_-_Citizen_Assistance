@@ -5,7 +5,7 @@ Per spec: 'Translate safety meaning accurately. Preserve severity. Preserve numb
 """
 
 from typing import Optional
-from src.infrastructure.llm.gemini_client import gemini_client
+from src.infrastructure.llm.groq_client import groq_client
 from src.infrastructure.llm.prompt_templates import SYSTEM_SAFETY_POLICY
 from src.observability.logger import get_logger
 
@@ -18,7 +18,7 @@ class TranslationService:
     async def translate_text(self, text: str, target_lang: str) -> str:
         """
         Translate safety content to target language (en, ta, hi).
-        Rely on Gemini for high-context safety translation.
+        Rely on Groq for high-context safety translation.
         Fails back to source text if translation fails.
         """
         if target_lang.lower() == "en" or not text:
@@ -34,7 +34,7 @@ class TranslationService:
             # Unsupported language fallback
             return text
 
-        llm_ready = gemini_client._get_client() is not None
+        llm_ready = groq_client._get_client() is not None
         if not llm_ready:
             return text
 
@@ -49,7 +49,7 @@ class TranslationService:
         )
 
         try:
-            translated = await gemini_client.generate_text(
+            translated = await groq_client.generate_text(
                 prompt=prompt,
                 system_instruction=SYSTEM_SAFETY_POLICY,
             )
