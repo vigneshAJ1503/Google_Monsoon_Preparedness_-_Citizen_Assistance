@@ -33,16 +33,20 @@ def run_migrations() -> None:
     """Run alembic migrations at startup."""
     try:
         logger.info("running_database_migrations")
-        # Find alembic.ini - it's in /app/backend or /backend depending on container
-        alembic_paths = ["/app/backend", "/backend", "/app"]
+        # Find alembic.ini - it's in /app or /app/backend depending on container
+        alembic_paths = ["/app", "/app/backend", "/backend"]
         alembic_dir = None
         for path in alembic_paths:
-            if os.path.exists(os.path.join(path, "alembic.ini")):
+            ini_path = os.path.join(path, "alembic.ini")
+            if os.path.exists(ini_path):
                 alembic_dir = path
+                logger.info("found_alembic_ini", path=ini_path)
                 break
+            else:
+                logger.info("alembic_ini_not_at", path=ini_path)
         
         if not alembic_dir:
-            logger.error("alembic.ini_not_found")
+            logger.error("alembic.ini_not_found_in_any_path")
             return
             
         logger.info("running_migrations_in", directory=alembic_dir)
