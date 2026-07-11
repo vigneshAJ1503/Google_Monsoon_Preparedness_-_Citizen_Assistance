@@ -15,7 +15,7 @@ from src.domain.rules.alert_rules import (
     get_rule_by_id,
 )
 from src.infrastructure.alerts.ndma_client import ndma_client
-from src.infrastructure.llm.gemini_client import gemini_client
+from src.infrastructure.llm.groq_client import groq_client
 from src.infrastructure.llm.prompt_templates import SYSTEM_SAFETY_POLICY
 from src.infrastructure.persistence.repositories import AlertRepository
 from src.observability.logger import get_logger
@@ -95,7 +95,7 @@ class AlertService:
             )
 
             # Optional citizen-friendly rewrite using LLM (if configured)
-            llm_ready = gemini_client._get_client() is not None
+            llm_ready = groq_client._get_client() is not None
             if llm_ready:
                 try:
                     rewrite_prompt = (
@@ -104,7 +104,7 @@ class AlertService:
                         f"Ensure the severity, measurements (e.g. rain in mm) and critical directions (e.g. stay indoors) are fully preserved. "
                         f"Make it sound urgent but calm. Limit to 2 short sentences."
                     )
-                    friendly_text = await gemini_client.generate_text(
+                    friendly_text = await groq_client.generate_text(
                         prompt=rewrite_prompt,
                         system_instruction=SYSTEM_SAFETY_POLICY,
                     )
