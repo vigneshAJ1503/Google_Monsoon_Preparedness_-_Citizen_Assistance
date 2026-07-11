@@ -37,6 +37,10 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy alembic migrations explicitly
+COPY alembic.ini .
+COPY alembic ./alembic
+
 COPY . .
 
 RUN chown -R appuser:appuser /app
